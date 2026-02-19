@@ -24,7 +24,7 @@ export default function Home() {
             href="/signup"
             className="border-2 border-purple-600 text-purple-600 px-8 py-3 rounded-xl hover:bg-purple-50 transform hover:scale-105 transition-all duration-200 font-semibold"
           >
-            Register
+            Register Karo 
           </a>
         </div>
       </div>
