@@ -209,14 +209,14 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-linear-to-br from-purple-50 via-blue-50 to-pink-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 animate-fade-in">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
               <h1 className="text-4xl font-bold bg-linear-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                 Welcome back, {user?.name}! 👋
               </h1>
-              <p className="text-gray-600 mt-2">{user?.email}</p>
+              
             </div>
             <div className="flex gap-3">
               <button
