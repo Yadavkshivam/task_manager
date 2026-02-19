@@ -68,8 +68,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ task }, { status: 201 });
   } catch (error) {
+    console.error("Error creating task:", error);
     return NextResponse.json(
-      { message: "Something went wrong" },
+      { message: "Something went wrong", error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }

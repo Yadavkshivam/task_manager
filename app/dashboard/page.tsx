@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import axios from "axios";
 
 interface User {
   name: string;
@@ -21,6 +22,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -30,21 +32,25 @@ export default function Dashboard() {
     status: "in-progress",
   });
   const [editingTask, setEditingTask] = useState<string | null>(null);
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   useEffect(() => {
     fetchUser();
     fetchTasks();
   }, []);
 
+  useEffect(() => {
+    filterTasks();
+  }, [searchQuery, filterPriority, filterStatus, tasks]);
+
   const fetchUser = async () => {
     try {
-      const res = await fetch("/api/auth/me");
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-      } else {
-        router.push("/login");
-      }
+      const response = await axios.get("/api/auth/me");
+      setUser(response.data.user);
     } catch (error) {
       console.error("Error fetching user:", error);
       router.push("/login");
@@ -55,40 +61,60 @@ export default function Dashboard() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch("/api/tasks");
-      if (res.ok) {
-        const data = await res.json();
-        setTasks(data.tasks);
-      }
+      const response = await axios.get("/api/tasks");
+      setTasks(response.data.tasks);
+      setFilteredTasks(response.data.tasks);
     } catch (error) {
       console.error("Error fetching tasks:", error);
     }
   };
 
+  const filterTasks = () => {
+    let filtered = [...tasks];
+
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter(
+        (task) =>
+          task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          task.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Priority filter
+    if (filterPriority !== "all") {
+      filtered = filtered.filter((task) => task.priority === filterPriority);
+    }
+
+    // Status filter
+    if (filterStatus !== "all") {
+      filtered = filtered.filter((task) => task.status === filterStatus);
+    }
+
+    setFilteredTasks(filtered);
+  };
+
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    try {
+      await axios.post("/api/auth/logout");
+      router.push("/login");
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+      await axios.post("/api/tasks", formData);
+      await fetchTasks();
+      setIsModalOpen(false);
+      setFormData({
+        title: "",
+        description: "",
+        priority: "Moderate Priority",
+        status: "in-progress",
       });
-
-      if (res.ok) {
-        await fetchTasks();
-        setIsModalOpen(false);
-        setFormData({
-          title: "",
-          description: "",
-          priority: "medium",
-          status: "in-progress",
-        });
-      }
     } catch (error) {
       console.error("Error creating task:", error);
     }
@@ -99,23 +125,16 @@ export default function Dashboard() {
     if (!editingTask) return;
 
     try {
-      const res = await fetch(`/api/tasks/${editingTask}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+      await axios.put(`/api/tasks/${editingTask}`, formData);
+      await fetchTasks();
+      setIsModalOpen(false);
+      setEditingTask(null);
+      setFormData({
+        title: "",
+        description: "",
+        priority: "medium",
+        status: "in-progress",
       });
-
-      if (res.ok) {
-        await fetchTasks();
-        setIsModalOpen(false);
-        setEditingTask(null);
-        setFormData({
-          title: "",
-          description: "",
-          priority: "medium",
-          status: "in-progress",
-        });
-      }
     } catch (error) {
       console.error("Error updating task:", error);
     }
@@ -125,13 +144,8 @@ export default function Dashboard() {
     if (!confirm("Are you sure you want to delete this task?")) return;
 
     try {
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        await fetchTasks();
-      }
+      await axios.delete(`/api/tasks/${id}`);
+      await fetchTasks();
     } catch (error) {
       console.error("Error deleting task:", error);
     }
@@ -157,6 +171,12 @@ export default function Dashboard() {
       priority: "medium",
       status: "in-progress",
     });
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilterPriority("all");
+    setFilterStatus("all");
   };
 
   const getPriorityColor = (priority: string) => {
@@ -264,9 +284,87 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Search and Filter Section */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 animate-fade-in">
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Search Bar */}
+            <div className="flex-1">
+              <div className="relative">
+                <svg
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search tasks by title or description..."
+                  className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Priority Filter */}
+            <div className="w-full md:w-48">
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 transition-colors"
+              >
+                <option value="all">All Priorities</option>
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="w-full md:w-48">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 transition-colors"
+              >
+                <option value="all">All Status</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+
+            {/* Clear Filters Button */}
+            {(searchQuery || filterPriority !== "all" || filterStatus !== "all") && (
+              <button
+                onClick={clearFilters}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors font-semibold whitespace-nowrap"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          {/* Filter Results Info */}
+          {(searchQuery || filterPriority !== "all" || filterStatus !== "all") && (
+            <div className="mt-4 p-3 bg-purple-50 rounded-xl border border-purple-200">
+              <p className="text-sm text-purple-800">
+                Showing <span className="font-bold">{filteredTasks.length}</span> of{" "}
+                <span className="font-bold">{tasks.length}</span> tasks
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Tasks Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tasks.map((task, index) => (
+          {filteredTasks.map((task, index) => (
             <div
               key={task.id}
               className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-200 animate-fade-in"
@@ -312,6 +410,7 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* Empty State - No tasks at all */}
         {tasks.length === 0 && (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center animate-fade-in">
             <div className="bg-purple-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -329,6 +428,25 @@ export default function Dashboard() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Create Task
+            </button>
+          </div>
+        )}
+
+        {/* Empty State - No filtered results */}
+        {tasks.length > 0 && filteredTasks.length === 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-12 text-center animate-fade-in">
+            <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-2">No tasks found</h3>
+            <p className="text-gray-600 mb-6">Try adjusting your filters or search query</p>
+            <button
+              onClick={clearFilters}
+              className="bg-gray-200 text-gray-700 px-8 py-3 rounded-xl hover:bg-gray-300 transition-colors font-semibold"
+            >
+              Clear All Filters
             </button>
           </div>
         )}
